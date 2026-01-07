@@ -2,6 +2,7 @@ pipeline {
     agent any
 
     environment {
+        PATH+EXTRA = "/usr/local/bin"
         BACKEND_IMAGE = "todo-backend"
         FRONTEND_IMAGE = "todo-frontend"
     }
