@@ -32,6 +32,7 @@ pipeline {
         stage('Start Services with Docker Compose') {
             steps {
                 echo "Levantando servicios con Docker Compose..."
+                sh 'docker-compose down -v || true'
                 sh "docker-compose up -d --build"
             }
         }
