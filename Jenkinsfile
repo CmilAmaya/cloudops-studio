@@ -2,7 +2,7 @@ pipeline {
     agent any
 
     environment {
-        PATH = "/usr/local/bin:/usr/bin:/bin"
+        PATH = "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin"
         BACKEND_IMAGE = "todo-backend"
         FRONTEND_IMAGE = "todo-frontend"
     }
