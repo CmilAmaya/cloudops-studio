@@ -44,6 +44,14 @@ pipeline {
             }
         }
 
+        stage('Run Backend Tests') {
+            steps {
+                dir('backend') {
+                    sh 'go test ./...'
+                }
+            }
+        }
+
         stage('Run Frontend Smoke Test') {
             steps {
                 echo "Verificando que frontend responde..."
