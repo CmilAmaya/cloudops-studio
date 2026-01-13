@@ -15,6 +15,22 @@ pipeline {
             }
         }
 
+        stage('Hadolint - Backend Dockerfile') {
+            steps {
+                sh '''
+                docker run --rm -i hadolint/hadolint < backend/Dockerfile
+                '''
+            }
+        }
+
+        stage('Hadolint - Frontend Dockerfile') {
+            steps {
+                sh '''
+                docker run --rm -i hadolint/hadolint < frontend/Dockerfile
+                '''
+            }
+        }
+
         stage('Build Backend Docker Image') {
             steps {
                 echo "Construyendo imagen del backend..."
@@ -29,11 +45,41 @@ pipeline {
             }
         }
 
+        stage('Trivy Scan - Backend Image') {
+            steps {
+                sh '''
+                docker run --rm \
+                -v /var/run/docker.sock:/var/run/docker.sock \
+                aquasec/trivy image ${BACKEND_IMAGE}
+                '''
+            }
+        }
+
+        stage('Trivy Scan - Frontend Image') {
+            steps {
+                sh '''
+                docker run --rm \
+                -v /var/run/docker.sock:/var/run/docker.sock \
+                aquasec/trivy image ${FRONTEND_IMAGE}
+                '''
+            }
+        }
+
+        stage('Dive - Backend Image') {
+            steps {
+                sh '''
+                docker run --rm \
+                -v /var/run/docker.sock:/var/run/docker.sock \
+                wagoodman/dive:latest ${BACKEND_IMAGE} --ci
+                '''
+            }
+        }
+
         stage('Start Services with Docker Compose') {
             steps {
                 echo "Levantando servicios con Docker Compose..."
                 sh 'docker-compose down -v || true'
-                sh "docker-compose up -d --build"
+                sh "docker-compose up -d"
             }
         }
 
