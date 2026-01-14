@@ -1,0 +1,129 @@
+pipeline {
+    agent any
+
+    environment {
+        PATH = "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin"
+
+        REGISTRY = "docker.io"
+        DOCKER_USER = "camilaamaya"
+
+        BACKEND_IMAGE = "${DOCKER_USER}/todo-backend"
+        FRONTEND_IMAGE = "${DOCKER_USER}/todo-frontend"
+
+        IMAGE_TAG = "${BUILD_NUMBER}"
+        K8S_NAMESPACE = "todo-app"
+    }
+
+    stages {
+
+        stage('Checkout') {
+            steps {
+                git url: 'https://github.com/CmilAmaya/cloudops-studio.git', branch: 'main'
+            }
+        }
+
+        /* ---------------- LINT ---------------- */
+
+        stage('Hadolint') {
+            steps {
+                sh '''
+                docker run --rm -i hadolint/hadolint < backend/Dockerfile
+                docker run --rm -i hadolint/hadolint < frontend/Dockerfile
+                '''
+            }
+        }
+
+        /* ---------------- BUILD ---------------- */
+
+        stage('Build Images') {
+            steps {
+                sh '''
+                docker build -t ${BACKEND_IMAGE}:${IMAGE_TAG} ./backend
+                docker build -t ${FRONTEND_IMAGE}:${IMAGE_TAG} ./frontend
+                '''
+            }
+        }
+
+        /* ---------------- TEST ---------------- */
+
+        stage('Backend Tests') {
+            steps {
+                dir('backend') {
+                    sh 'go test ./...'
+                }
+            }
+        }
+
+        /* ---------------- SECURITY ---------------- */
+
+        stage('Trivy Scan') {
+            steps {
+                sh '''
+                docker run --rm \
+                  -v /var/run/docker.sock:/var/run/docker.sock \
+                  aquasec/trivy image ${BACKEND_IMAGE}:${IMAGE_TAG}
+
+                docker run --rm \
+                  -v /var/run/docker.sock:/var/run/docker.sock \
+                  aquasec/trivy image ${FRONTEND_IMAGE}:${IMAGE_TAG}
+                '''
+            }
+        }
+
+        /* ---------------- PUSH ---------------- */
+
+        stage('Push Images to Registry') {
+            steps {
+                withCredentials([usernamePassword(
+                    credentialsId: 'dockerhub-creds',
+                    usernameVariable: 'DOCKER_USERNAME',
+                    passwordVariable: 'DOCKER_PASSWORD'
+                )]) {
+                    sh '''
+                    echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin
+                    docker push ${BACKEND_IMAGE}:${IMAGE_TAG}
+                    docker push ${FRONTEND_IMAGE}:${IMAGE_TAG}
+                    '''
+                }
+            }
+        }
+
+        /* ---------------- DEPLOY ---------------- */
+
+        stage('Debug workspace') {
+            steps {
+                sh '''
+                echo "Current directory:"
+                pwd
+
+                echo "Listing files:"
+                ls -la
+                '''
+            }
+        }
+
+        /* ---------------- DEPLOY ---------------- */
+
+        stage('Deploy to Kubernetes') {
+            steps {
+                sh '''
+                kubectl create namespace ${K8S_NAMESPACE} --dry-run=client -o yaml | kubectl apply -f -
+
+                kubectl apply -f k8s/
+
+                kubectl set image deployment/backend backend=${BACKEND_IMAGE}:${IMAGE_TAG} -n ${K8S_NAMESPACE}
+                kubectl set image deployment/frontend frontend=${FRONTEND_IMAGE}:${IMAGE_TAG} -n ${K8S_NAMESPACE}
+                '''
+            }
+        }
+    }
+
+    post {
+        success {
+            echo "Kubernetes deployment completed successfully"
+        }
+        failure {
+            echo "Pipeline failed"
+        }
+    }
+}
