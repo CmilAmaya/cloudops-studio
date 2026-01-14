@@ -90,6 +90,20 @@ pipeline {
 
         /* ---------------- DEPLOY ---------------- */
 
+        stage('Debug workspace') {
+            steps {
+                sh '''
+                echo "Current directory:"
+                pwd
+
+                echo "Listing files:"
+                ls -la
+                '''
+            }
+        }
+
+        /* ---------------- DEPLOY ---------------- */
+
         stage('Deploy to Kubernetes') {
             steps {
                 sh '''
